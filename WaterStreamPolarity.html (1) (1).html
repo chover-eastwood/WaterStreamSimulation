@@ -1,0 +1,1661 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Electrostatic Water Stream Bending Simulation</title>
+  <!-- Load Tailwind CSS for responsive layout and dark-slate lab UI -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Load Inter and JetBrains Mono fonts for clean typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    /* Custom range slider styling for sleek laboratory controls */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 6px;
+      border-radius: 999px;
+      background: #334155;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 18px;
+      width: 18px;
+      border-radius: 50%;
+      background: #38bdf8;
+      border: 2px solid #0f172a;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+      margin-top: -6px;
+      transition: transform 0.15s ease, background-color 0.15s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+      background: #7dd3fc;
+    }
+    input[type="range"]::-moz-range-track {
+      height: 6px;
+      border-radius: 999px;
+      background: #334155;
+    }
+    input[type="range"]::-moz-range-thumb {
+      height: 18px;
+      width: 18px;
+      border-radius: 50%;
+      background: #38bdf8;
+      border: 2px solid #0f172a;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+    }
+    /* Prevent touch scrolling when dragging PVC pipe on canvas */
+    #simCanvas {
+      touch-action: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans antialiased selection:bg-sky-500/30 selection:text-sky-200 min-h-screen flex flex-col">
+
+  <!-- Top Laboratory Header Bar -->
+  <header class="border-b border-slate-800/90 bg-slate-900/80 backdrop-blur-md px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-xl bg-sky-500/15 border border-sky-400/30 flex items-center justify-center text-sky-400 shadow-inner">
+        <!-- Water molecule / dipole icon -->
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="14" r="4.5" fill="#ef4444" stroke="#fca5a5" stroke-width="1.5"/>
+          <circle cx="6.5" cy="7.5" r="2.7" fill="#f8fafc" stroke="#bae6fd" stroke-width="1.5"/>
+          <circle cx="17.5" cy="7.5" r="2.7" fill="#f8fafc" stroke="#bae6fd" stroke-width="1.5"/>
+          <line x1="9.2" y1="10.8" x2="7.8" y2="9.2" stroke="#cbd5e1" stroke-width="1.8"/>
+          <line x1="14.8" y1="10.8" x2="16.2" y2="9.2" stroke="#cbd5e1" stroke-width="1.8"/>
+        </svg>
+      </div>
+      <h1 class="text-base sm:text-lg font-bold tracking-tight text-slate-100 leading-tight">
+        Electrostatic Attraction of Polar Water Molecules
+      </h1>
+    </div>
+
+    <!-- Quick Stage Jump Presets -->
+    <div class="flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-xl border border-slate-800">
+      <button id="presetStage1" type="button" class="stage-preset-btn px-2.5 py-1 rounded-lg text-xs font-medium transition-all bg-slate-800 text-sky-300 border border-sky-500/40">
+        1. Random
+      </button>
+      <button id="presetStage2" type="button" class="stage-preset-btn px-2.5 py-1 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/60">
+        2. Alignment
+      </button>
+      <button id="presetStage3" type="button" class="stage-preset-btn px-2.5 py-1 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/60">
+        3. Stream Bend
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Interactive Workspace -->
+  <main class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+
+    <!-- Left / Center: Interactive HTML5 Simulation Canvas -->
+    <section class="relative flex-1 flex flex-col min-h-[500px] sm:min-h-[580px] lg:min-h-0 bg-slate-950 p-2.5 sm:p-3.5">
+      <div id="canvasWrapper" class="relative flex-1 w-full h-full rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl">
+        <canvas id="simCanvas" class="block w-full h-full"></canvas>
+
+        <!-- Compact Top-Left Atom Key -->
+        <div class="pointer-events-none absolute top-3 left-3 flex items-center gap-3 bg-slate-950/80 backdrop-blur-md border border-slate-800/90 rounded-xl px-3 py-1.5 text-xs shadow-lg">
+          <div class="flex items-center gap-1.5">
+            <span class="w-3 h-3 rounded-full bg-red-500 border border-red-300 inline-block"></span>
+            <span class="text-slate-200 font-medium">O (<span class="font-mono text-red-300">δ−</span>)</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded-full bg-slate-100 border border-sky-200 inline-block"></span>
+            <span class="text-slate-200 font-medium">H (<span class="font-mono text-sky-300">δ+</span>)</span>
+          </div>
+        </div>
+
+        <!-- Floating Notification Banner (for Rub with Wool feedback) -->
+        <div id="toastBanner" class="pointer-events-none opacity-0 transition-opacity duration-300 absolute top-14 left-1/2 -translate-x-1/2 bg-sky-950/90 border border-sky-400/50 text-sky-200 px-3.5 py-1.5 rounded-full text-xs font-medium shadow-lg backdrop-blur-md">
+          Electrons transferred from wool to PVC pipe!
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Sidebar: Streamlined Controls -->
+    <aside class="w-full lg:w-[320px] xl:w-[340px] border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-900/95 p-4 overflow-y-auto flex flex-col gap-3.5">
+
+      <!-- 1. Compact Current Stage Indicator -->
+      <div class="rounded-xl border border-slate-800 bg-slate-950/90 px-3.5 py-2.5 flex items-center justify-between gap-2">
+        <span id="stageBadge" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase bg-slate-800 text-slate-300 border border-slate-700">
+          <span id="stageDot" class="w-2 h-2 rounded-full bg-slate-400"></span>
+          Stage 1
+        </span>
+        <span id="stageTitle" class="text-xs font-semibold text-slate-200 truncate">
+          Random Orientation
+        </span>
+      </div>
+
+      <!-- 2. Interactive PVC Pipe Controls -->
+      <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-3.5 flex flex-col gap-3.5">
+        <!-- Charge Pipe (Rub with Wool) Action Button -->
+        <button id="rubWoolBtn" type="button" class="w-full py-2.5 px-4 rounded-xl font-semibold text-sm text-slate-950 bg-gradient-to-r from-sky-400 via-cyan-300 to-sky-400 hover:from-sky-300 hover:to-cyan-200 active:scale-[0.99] transition-all shadow-lg shadow-sky-500/20 flex items-center justify-center gap-2">
+          <svg class="w-4 h-4 text-slate-900" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span>Charge Pipe (Rub with Wool)</span>
+        </button>
+
+        <!-- Pipe Negative Charge Slider -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between items-center text-xs">
+            <label for="chargeSlider" class="font-medium text-slate-300">Pipe Negative Charge (−)</label>
+            <span id="chargeValueLabel" class="font-mono font-semibold text-sky-300 bg-sky-950/70 border border-sky-800/60 px-2 py-0.5 rounded-md">85%</span>
+          </div>
+          <input id="chargeSlider" type="range" min="0" max="100" value="85" class="w-full" />
+        </div>
+
+        <!-- Pipe Distance Slider -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between items-center text-xs">
+            <label for="distanceSlider" class="font-medium text-slate-300">Pipe Distance</label>
+            <span id="distanceValueLabel" class="font-mono font-semibold text-amber-300 bg-amber-950/50 border border-amber-800/50 px-2 py-0.5 rounded-md">13.8 cm</span>
+          </div>
+          <input id="distanceSlider" type="range" min="15" max="150" value="138" class="w-full" />
+        </div>
+      </div>
+
+      <!-- 3. Visual Overlays (Checkboxes) -->
+      <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-3.5 space-y-1.5">
+        <h3 class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-1 pb-1">Visual Overlays</h3>
+
+        <label class="flex items-center justify-between p-2 rounded-xl hover:bg-slate-900/90 cursor-pointer transition-colors">
+          <div class="flex items-center gap-2.5">
+            <input id="toggleCharges" type="checkbox" checked class="w-4 h-4 rounded accent-sky-400 cursor-pointer" />
+            <span class="text-xs font-medium text-slate-200">Polarity (δ+ / δ−)</span>
+          </div>
+          <span class="font-mono text-xs text-sky-300 font-semibold">δ+/δ−</span>
+        </label>
+
+        <label class="flex items-center justify-between p-2 rounded-xl hover:bg-slate-900/90 cursor-pointer transition-colors">
+          <div class="flex items-center gap-2.5">
+            <input id="toggleForces" type="checkbox" checked class="w-4 h-4 rounded accent-emerald-400 cursor-pointer" />
+            <span class="text-xs font-medium text-slate-200">Electrostatic Attractions</span>
+          </div>
+          <span class="w-4 border-t-2 border-dashed border-emerald-400 inline-block"></span>
+        </label>
+
+        <label class="flex items-center justify-between p-2 rounded-xl hover:bg-slate-900/90 cursor-pointer transition-colors">
+          <div class="flex items-center gap-2.5">
+            <input id="toggleCohesion" type="checkbox" checked class="w-4 h-4 rounded accent-violet-400 cursor-pointer" />
+            <span class="text-xs font-medium text-slate-200">Cohesion (Hydrogen Bonds)</span>
+          </div>
+          <span class="w-4 border-t-2 border-dotted border-violet-400 inline-block"></span>
+        </label>
+
+        <label class="flex items-center justify-between p-2 rounded-xl hover:bg-slate-900/90 cursor-pointer transition-colors">
+          <div class="flex items-center gap-2.5">
+            <input id="toggleFieldLines" type="checkbox" checked class="w-4 h-4 rounded accent-cyan-400 cursor-pointer" />
+            <span class="text-xs font-medium text-slate-200">Electric Field Lines</span>
+          </div>
+          <span class="text-cyan-400 text-xs font-mono">→⊖</span>
+        </label>
+      </div>
+
+      <!-- 4. Playback & Time Controls -->
+      <div class="rounded-2xl border border-slate-800 bg-slate-950/60 p-3 flex items-center gap-2">
+        <button id="playPauseBtn" type="button" class="flex-1 py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-semibold border border-slate-700 transition-colors flex items-center justify-center gap-1.5">
+          <span id="playPauseIcon">⏸</span>
+          <span id="playPauseText">Pause</span>
+        </button>
+
+        <button id="slowMoBtn" type="button" class="flex-1 py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-colors flex items-center justify-center gap-1.5">
+          <span>🐢</span>
+          <span>Slow Mo</span>
+        </button>
+
+        <button id="resetBtn" type="button" class="py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-colors" title="Reset Simulation">
+          ↺
+        </button>
+      </div>
+
+    </aside>
+  </main>
+
+  <script>
+    /**
+     * Electrostatic Water Stream Bending Simulation
+     * Models macroscopic streamline deflection coupled with microscopic H2O dipole torque,
+     * unbiased Brownian thermal agitation, Coulomb attraction, and hydrogen-bond cohesion.
+     */
+    (function () {
+      'use strict';
+
+      // =========================================================================
+      // 1. DOM REFERENCES & CANVAS INITIALIZATION
+      // =========================================================================
+      const canvas = document.getElementById('simCanvas');
+      const ctx = canvas.getContext('2d');
+      const canvasWrapper = document.getElementById('canvasWrapper');
+
+      // UI Controls
+      const chargeSlider = document.getElementById('chargeSlider');
+      const chargeValueLabel = document.getElementById('chargeValueLabel');
+      const distanceSlider = document.getElementById('distanceSlider');
+      const distanceValueLabel = document.getElementById('distanceValueLabel');
+      const rubWoolBtn = document.getElementById('rubWoolBtn');
+      const toastBanner = document.getElementById('toastBanner');
+
+      // Overlays
+      const toggleCharges = document.getElementById('toggleCharges');
+      const toggleForces = document.getElementById('toggleForces');
+      const toggleCohesion = document.getElementById('toggleCohesion');
+      const toggleFieldLines = document.getElementById('toggleFieldLines');
+
+      // Playback & Presets
+      const playPauseBtn = document.getElementById('playPauseBtn');
+      const playPauseIcon = document.getElementById('playPauseIcon');
+      const playPauseText = document.getElementById('playPauseText');
+      const slowMoBtn = document.getElementById('slowMoBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const presetStage1 = document.getElementById('presetStage1');
+      const presetStage2 = document.getElementById('presetStage2');
+      const presetStage3 = document.getElementById('presetStage3');
+
+      // Live Stage Indicator Elements
+      const stageBadge = document.getElementById('stageBadge');
+      const stageDot = document.getElementById('stageDot');
+      const stageTitle = document.getElementById('stageTitle');
+
+      // =========================================================================
+      // 2. SIMULATION STATE & CONSTANTS
+      // =========================================================================
+      const HOH_HALF_ANGLE = (104.5 / 2) * (Math.PI / 180); // 52.25 deg in radians
+
+      const state = {
+        width: 800,
+        height: 600,
+        dpr: 1,
+        time: 0,
+        paused: false,
+        slowMo: false,
+
+        // Pipe state
+        pipeCharge: 0.85,       // 0.0 to 1.0 (0% to 100%)
+        pipeDistCm: 13.8,       // 1.5 cm to 15.0 cm
+        pipeNormY: 0.48,        // Normalized vertical position (0.20 to 0.80)
+        isDraggingPipe: false,
+        isHoveringPipe: false,
+        dragOffsetX: 0,
+        dragOffsetY: 0,
+
+        // Wool rubbing animation state
+        woolAnimProgress: 0,    // > 0 when actively rubbing
+        woolSparks: [],
+        toastTimeout: null,
+
+        // Computed physics metrics
+        streamBaseX: 250,
+        faucetBottomY: 76,
+        beakerTopY: 520,
+        streamCurve: [],        // Array of { y, x, vy, vx, E, alignment, netForce, targetAngle }
+        avgAlignment: 0,        // 0 to 1
+        maxNetForceMicroN: 0,
+        deflectionDeg: 0,
+        activeStage: 1,
+
+        // Particle arrays
+        streamMolecules: [],
+        zoomMolecules: [],
+        splashes: [],
+      };
+
+      // =========================================================================
+      // 3. ANGLE & MATH HELPERS
+      // =========================================================================
+      function normalizeAngle(a) {
+        if (!Number.isFinite(a)) return 0;
+        let res = (a + Math.PI) % (Math.PI * 2);
+        if (res < 0) res += Math.PI * 2;
+        return res - Math.PI;
+      }
+
+      // =========================================================================
+      // 4. MOLECULE INITIALIZATION (STREAM & ZOOM LENS)
+      // =========================================================================
+      function initStreamMolecules() {
+        state.streamMolecules = [];
+        const count = 34;
+        for (let i = 0; i < count; i++) {
+          const frac = i / count;
+          const lane = i % 2 === 0 ? -1 : 1;
+          const jitterX = (Math.random() - 0.5) * 3.0;
+          const initRandAngle = Math.random() * Math.PI * 2;
+          state.streamMolecules.push({
+            progress: frac,
+            laneOffset: lane * 6.5 + jitterX,
+            randomAngle: initRandAngle,
+            angle: initRandAngle,
+            brownianVel: (Math.random() - 0.5) * 2.4,
+          });
+        }
+      }
+
+      function initZoomMolecules() {
+        state.zoomMolecules = [];
+        // 11 well-spaced water molecules so enlarged H2O molecules are clearly readable
+        const slots = [
+          { nx: -0.48, ny: -0.62 },
+          { nx: -0.54, ny: -0.05 },
+          { nx: -0.46, ny: 0.54 },
+
+          { nx: 0.00, ny: -0.76 },
+          { nx: -0.04, ny: -0.22 },
+          { nx: 0.04, ny: 0.30 },
+          { nx: -0.02, ny: 0.80 },
+
+          { nx: 0.48, ny: -0.58 },
+          { nx: 0.54, ny: 0.00 },
+          { nx: 0.46, ny: 0.58 },
+          { nx: 0.24, ny: -0.34 },
+        ];
+
+        const count = slots.length;
+        slots.forEach((pt, idx) => {
+          // Stratify initial angles across [0, 2*PI) with random jitter so all directions (0°–360°)
+          // are immediately represented when the PVC pipe is far away
+          const stratifiedAngle = normalizeAngle(
+            (idx / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.85
+          );
+          state.zoomMolecules.push({
+            id: idx,
+            baseX: pt.nx,
+            baseY: pt.ny,
+            x: pt.nx,
+            y: pt.ny,
+            randomAngle: stratifiedAngle,
+            angle: stratifiedAngle,
+            brownianVel: (Math.random() - 0.5) * 2.2,
+            thermalSeed: Math.random() * 100,
+          });
+        });
+      }
+
+      // =========================================================================
+      // 5. RESPONSIVE CANVAS SIZING & PIPE GEOMETRY
+      // =========================================================================
+      function resizeCanvas() {
+        const rect = canvasWrapper.getBoundingClientRect();
+        state.width = Math.max(320, rect.width);
+        state.height = Math.max(420, rect.height);
+        state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+        canvas.width = Math.round(state.width * state.dpr);
+        canvas.height = Math.round(state.height * state.dpr);
+
+        // Position stream around 38% from left on desktop so enlarged Zoom Lens fits cleanly
+        state.streamBaseX = state.width >= 640
+          ? Math.round(state.width * 0.38)
+          : Math.round(state.width * 0.26);
+        state.faucetBottomY = 72;
+        state.beakerTopY = Math.max(310, state.height - 72);
+      }
+
+      function getPipeGeometry() {
+        const pipeWidth = state.width < 520 ? 28 : 34;
+        const pipeHeight = Math.min(185, Math.max(125, (state.beakerTopY - state.faucetBottomY) * 0.40));
+        const minLeftX = state.streamBaseX + 52;
+        const maxLeftX = Math.max(minLeftX + 110, state.width - pipeWidth - 28);
+
+        const fracDist = Math.max(0, Math.min(1, (state.pipeDistCm - 1.5) / (15.0 - 1.5)));
+        const leftX = minLeftX + fracDist * (maxLeftX - minLeftX);
+        const centerX = leftX + pipeWidth * 0.5;
+        const rightX = leftX + pipeWidth;
+
+        const streamSpan = Math.max(120, state.beakerTopY - state.faucetBottomY);
+        const centerY = state.faucetBottomY + state.pipeNormY * streamSpan;
+        const topY = centerY - pipeHeight * 0.5;
+        const bottomY = centerY + pipeHeight * 0.5;
+
+        return {
+          leftX,
+          rightX,
+          centerX,
+          centerY,
+          topY,
+          bottomY,
+          width: pipeWidth,
+          height: pipeHeight,
+          minLeftX,
+          maxLeftX,
+        };
+      }
+
+      // =========================================================================
+      // 6. PHYSICS ENGINE & PARTICLE UPDATES
+      // =========================================================================
+      function computePhysics(dt) {
+        const pipe = getPipeGeometry();
+        const streamHeight = Math.max(120, state.beakerTopY - state.faucetBottomY);
+        const steps = 72;
+        const dy = streamHeight / steps;
+
+        const v0 = 155; // Initial downward water exit speed (px/s)
+        const g = 340;  // Effective downward gravity acceleration (px/s^2)
+
+        let curX = state.streamBaseX;
+        let vx = 0;
+
+        const curve = [];
+        let alignmentSum = 0;
+        let weightSum = 0;
+        let peakForce = 0;
+
+        for (let i = 0; i <= steps; i++) {
+          const y = state.faucetBottomY + i * dy;
+          const vy = Math.sqrt(v0 * v0 + 2 * g * (i * dy));
+          const stepTime = dy / vy;
+
+          // Distance from this stream slice to the PVC pipe's charged left surface
+          const dx = Math.max(22, pipe.leftX - curX);
+          const clampedPipeY = Math.max(pipe.topY, Math.min(pipe.bottomY, y));
+          const dyPipe = y - clampedPipeY;
+          const r = Math.sqrt(dx * dx + dyPipe * dyPipe);
+
+          // Map pixel distance to effective cm so alignment has a steep physical falloff
+          const maxSpanPx = Math.max(1, pipe.maxLeftX - pipe.minLeftX);
+          const effectiveDistCm = 1.5 + ((r - 46) / maxSpanPx) * (15.0 - 1.5);
+          const proximity = Math.max(0, Math.min(1, (15.0 - effectiveDistCm) / (15.0 - 1.5)));
+
+          // Steep distance falloff (~proximity^2.7) minus thermal agitation floor:
+          // Ensures alignment is ~0%-3% when pipe is far (>= 10.5 cm) or uncharged,
+          // and rises smoothly toward ~98% as the charged pipe approaches close
+          const rawField = state.pipeCharge * Math.pow(proximity, 2.7);
+          const effectiveField = Math.max(0, rawField - 0.025);
+          const alignment = Math.min(1, Math.tanh(2.65 * effectiveField));
+
+          // Electric field magnitude for rotational torque scaling
+          const E = effectiveField * 2.2;
+
+          // Net Coulomb force on aligned dipoles in a non-uniform field: F_net ~ alignment * |grad E|
+          const gradE = state.pipeCharge * Math.pow(proximity, 3.2);
+          const netForce = alignment * gradE;
+
+          // Horizontal acceleration of cohesive water column toward pipe
+          const ax = netForce * 390;
+          vx += ax * stepTime;
+          curX += vx * stepTime;
+
+          // Prevent stream from clipping inside the solid PVC pipe wall
+          const maxAllowedX = pipe.leftX - 22;
+          if (curX > maxAllowedX && y >= pipe.topY - 12 && y <= pipe.bottomY + 12) {
+            curX = maxAllowedX;
+            vx = Math.min(vx, 0);
+          }
+
+          // Weight telemetry near the active pipe region
+          const proximityWeight = Math.exp(-(dyPipe * dyPipe) / (2 * 95 * 95));
+          alignmentSum += alignment * proximityWeight;
+          weightSum += proximityWeight;
+          if (netForce > peakForce) peakForce = netForce;
+
+          curve.push({
+            y,
+            x: curX,
+            vy,
+            vx,
+            E,
+            alignment,
+            netForce,
+            targetAngle: Math.atan2(pipe.centerY - y, pipe.leftX - curX),
+          });
+        }
+
+        state.streamCurve = curve;
+        state.avgAlignment = weightSum > 0 ? alignmentSum / weightSum : 0;
+        state.maxNetForceMicroN = peakForce * 2.4;
+
+        // Calculate bottom deflection angle
+        const bottomPt = curve[curve.length - 1];
+        const totalDeflectX = bottomPt.x - state.streamBaseX;
+        state.deflectionDeg = Math.atan2(totalDeflectX, streamHeight) * (180 / Math.PI);
+
+        // Update Stream Molecules
+        updateStreamMolecules(dt);
+
+        // Update Zoom Lens Molecules
+        updateZoomMolecules(dt, pipe);
+
+        // Update Beaker Water Splashes
+        updateSplashes(dt, bottomPt.x);
+
+        // Update Wool Rubbing Sparks
+        updateWoolAnimation(dt, pipe);
+
+        // Update Stage Classification & UI Readouts
+        updateStageAndUI();
+      }
+
+      function sampleStreamCurve(t) {
+        const curve = state.streamCurve;
+        if (!curve || curve.length === 0) {
+          return {
+            x: state.streamBaseX,
+            y: state.faucetBottomY,
+            vy: 200,
+            vx: 0,
+            E: 0,
+            alignment: 0,
+            netForce: 0,
+            targetAngle: 0,
+          };
+        }
+        const clamped = Math.max(0, Math.min(1, t));
+        const exactIdx = clamped * (curve.length - 1);
+        const idx0 = Math.floor(exactIdx);
+        const idx1 = Math.min(curve.length - 1, idx0 + 1);
+        const f = exactIdx - idx0;
+
+        const p0 = curve[idx0];
+        const p1 = curve[idx1];
+        const angleDiff = normalizeAngle(p1.targetAngle - p0.targetAngle);
+
+        return {
+          x: p0.x + (p1.x - p0.x) * f,
+          y: p0.y + (p1.y - p0.y) * f,
+          vy: p0.vy + (p1.vy - p0.vy) * f,
+          vx: p0.vx + (p1.vx - p0.vx) * f,
+          E: p0.E + (p1.E - p0.E) * f,
+          alignment: p0.alignment + (p1.alignment - p0.alignment) * f,
+          netForce: p0.netForce + (p1.netForce - p0.netForce) * f,
+          targetAngle: normalizeAngle(p0.targetAngle + angleDiff * f),
+        };
+      }
+
+      function updateStreamMolecules(dt) {
+        const streamHeight = Math.max(120, state.beakerTopY - state.faucetBottomY);
+
+        for (let i = 0; i < state.streamMolecules.length; i++) {
+          const m = state.streamMolecules[i];
+          const sample = sampleStreamCurve(m.progress);
+
+          // Advance downward with stream velocity
+          const speedNorm = (sample.vy || 220) / streamHeight;
+          m.progress += speedNorm * dt;
+          if (m.progress >= 1) {
+            m.progress -= 1;
+            const topSample = sampleStreamCurve(m.progress);
+            m.randomAngle = Math.random() * Math.PI * 2;
+            m.brownianVel = (Math.random() - 0.5) * 2.4;
+            const entryBlend = normalizeAngle(topSample.targetAngle - m.randomAngle) * topSample.alignment;
+            m.angle = normalizeAngle(m.randomAngle + entryBlend);
+            continue;
+          }
+
+          // Continuous Brownian rotational tumbling (unbiased random walk across 0 to 2*PI)
+          m.brownianVel += (Math.random() - 0.5) * 8.5 * dt;
+          m.brownianVel *= Math.exp(-1.8 * dt);
+          m.randomAngle = normalizeAngle(m.randomAngle + m.brownianVel * dt);
+
+          // Blend between true random orientation (when alignment -> 0) and
+          // polarized dipole orientation toward the negative PVC pipe (when alignment -> 1)
+          const dipoleOffset = normalizeAngle(sample.targetAngle - m.randomAngle);
+          const desiredAngle = normalizeAngle(m.randomAngle + dipoleOffset * sample.alignment);
+
+          const deltaAngle = normalizeAngle(desiredAngle - m.angle);
+          const rotRate = 4.5 + 8.5 * sample.alignment;
+          m.angle = normalizeAngle(m.angle + deltaAngle * Math.min(1, rotRate * dt));
+        }
+      }
+
+      function updateZoomMolecules(dt, pipe) {
+        const streamHeight = Math.max(120, state.beakerTopY - state.faucetBottomY);
+        const reticleProgress = Math.max(0.12, Math.min(0.88, (pipe.centerY - state.faucetBottomY) / streamHeight));
+        const sample = sampleStreamCurve(reticleProgress);
+
+        const dirToPipe = sample.targetAngle;
+        const pullDirX = Math.cos(dirToPipe);
+        const pullDirY = Math.sin(dirToPipe);
+        const align = sample.alignment;
+
+        // Exaggerated rightward pull strength as the charged PVC pipe approaches
+        const pullStrength = Math.min(1, Math.pow(align, 1.15) * (0.45 + 0.55 * state.pipeCharge));
+
+        // Gentle downward liquid flow speed inside the Zoom Lens
+        const flowSpeedY = 0.28;
+
+        for (let i = 0; i < state.zoomMolecules.length; i++) {
+          const zm = state.zoomMolecules[i];
+
+          // 1. Flow downward through the lens and wrap smoothly from bottom (+1.05) to top (-1.05)
+          zm.baseY += flowSpeedY * dt;
+          if (zm.baseY > 1.05) {
+            zm.baseY -= 2.1;
+            zm.randomAngle = Math.random() * Math.PI * 2;
+            zm.brownianVel = (Math.random() - 0.5) * 2.2;
+            const freshDiff = normalizeAngle(dirToPipe - zm.randomAngle);
+            zm.angle = normalizeAngle(zm.randomAngle + freshDiff * align);
+          }
+
+          // 2. Continuous Brownian thermal tumbling across 0°–360° (no bias when align ≈ 0)
+          zm.brownianVel += (Math.random() - 0.5) * 6.5 * dt;
+          zm.brownianVel *= Math.exp(-1.6 * dt);
+          zm.randomAngle = normalizeAngle(zm.randomAngle + zm.brownianVel * dt);
+
+          // 3. Progressive dipole polarization:
+          // When align ≈ 0 (pipe far/uncharged), desiredAngle = zm.randomAngle (purely random).
+          // As pipe approaches (align -> 1), desiredAngle smoothly rotates toward dirToPipe (δ+ H's facing pipe).
+          const shortestToPipe = normalizeAngle(dirToPipe - zm.randomAngle);
+          const subtlePolarizedFlutter =
+            align * (1 - align * 0.65) * 0.16 * Math.sin(state.time * 5.2 + zm.thermalSeed);
+          const desiredAngle = normalizeAngle(
+            zm.randomAngle + shortestToPipe * align + subtlePolarizedFlutter
+          );
+
+          const angleError = normalizeAngle(desiredAngle - zm.angle);
+          const turnSpeed = 4.0 + 9.0 * align;
+          zm.angle = normalizeAngle(zm.angle + angleError * Math.min(1, turnSpeed * dt));
+
+          // 4. Exaggerated rightward pull toward the approaching PVC pipe:
+          // Right-side molecules surge toward the right wall of the lens and drag left-side
+          // neighbors across the centerline via hydrogen-bond cohesion
+          const compressedX = zm.baseX * (1 - 0.34 * pullStrength);
+          const rightwardPull = 0.48 * pullStrength * Math.max(0.75, pullDirX);
+          const verticalPull = 0.12 * pullStrength * pullDirY;
+
+          const thermalWobbleX = Math.cos(state.time * 4.2 + zm.thermalSeed) * 0.024 * (1 - 0.5 * align);
+          const thermalWobbleY = Math.sin(state.time * 4.8 + zm.thermalSeed * 1.3) * 0.020 * (1 - 0.5 * align);
+
+          const targetX = compressedX + rightwardPull + thermalWobbleX;
+          const targetY = zm.baseY + verticalPull + thermalWobbleY;
+
+          // Right-side molecules respond slightly faster, creating a cohesive tug on left-side neighbors
+          const responseRate = 7.5 + (zm.baseX + 0.6) * 3.5;
+          zm.x += (targetX - zm.x) * Math.min(1, dt * responseRate);
+          zm.y = targetY;
+        }
+      }
+
+      function updateSplashes(dt, impactX) {
+        if (Math.random() < 0.45 && state.splashes.length < 24) {
+          state.splashes.push({
+            x: impactX + (Math.random() - 0.5) * 10,
+            y: state.beakerTopY + 12,
+            vx: (Math.random() - 0.5) * 55,
+            vy: -25 - Math.random() * 45,
+            life: 1.0,
+            r: 1.5 + Math.random() * 1.6,
+          });
+        }
+
+        for (let i = state.splashes.length - 1; i >= 0; i--) {
+          const s = state.splashes[i];
+          s.vy += 210 * dt;
+          s.x += s.vx * dt;
+          s.y += s.vy * dt;
+          s.life -= 2.4 * dt;
+          if (s.life <= 0) {
+            state.splashes.splice(i, 1);
+          }
+        }
+      }
+
+      function updateWoolAnimation(dt, pipe) {
+        if (state.woolAnimProgress > 0) {
+          state.woolAnimProgress = Math.max(0, state.woolAnimProgress - dt * 0.72);
+          if (Math.random() < 0.65 && state.woolSparks.length < 26) {
+            const sparkY = pipe.topY + 18 + Math.random() * (pipe.height - 36);
+            state.woolSparks.push({
+              x: pipe.rightX + 18 + Math.random() * 12,
+              y: sparkY,
+              targetX: pipe.centerX + (Math.random() - 0.5) * 10,
+              targetY: sparkY + (Math.random() - 0.5) * 14,
+              life: 1.0,
+            });
+          }
+        }
+
+        for (let i = state.woolSparks.length - 1; i >= 0; i--) {
+          const sp = state.woolSparks[i];
+          sp.x += (sp.targetX - sp.x) * Math.min(1, dt * 9);
+          sp.y += (sp.targetY - sp.y) * Math.min(1, dt * 9);
+          sp.life -= 1.8 * dt;
+          if (sp.life <= 0) {
+            state.woolSparks.splice(i, 1);
+          }
+        }
+      }
+
+      function updateStageAndUI() {
+        const alignPct = Math.round(state.avgAlignment * 100);
+        const deflectAbs = Math.abs(state.deflectionDeg);
+
+        // Determine active physical stage
+        let newStage = 1;
+        if (alignPct >= 52 && deflectAbs >= 3.2) {
+          newStage = 3;
+        } else if (alignPct >= 14) {
+          newStage = 2;
+        }
+        state.activeStage = newStage;
+
+        // Update Compact Stage Indicator
+        if (newStage === 1) {
+          stageBadge.className = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase bg-slate-800 text-slate-300 border border-slate-700';
+          stageDot.className = 'w-2 h-2 rounded-full bg-slate-400';
+          stageBadge.lastChild.textContent = ' Stage 1';
+          stageTitle.textContent = 'Random Orientation';
+        } else if (newStage === 2) {
+          stageBadge.className = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase bg-amber-950/80 text-amber-300 border border-amber-500/40';
+          stageDot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
+          stageBadge.lastChild.textContent = ' Stage 2';
+          stageTitle.textContent = 'Dipole Alignment';
+        } else {
+          stageBadge.className = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase bg-sky-950/80 text-sky-300 border border-sky-400/50';
+          stageDot.className = 'w-2 h-2 rounded-full bg-sky-400 animate-ping';
+          stageBadge.lastChild.textContent = ' Stage 3';
+          stageTitle.textContent = 'Net Pull & Stream Bend';
+        }
+
+        // Sync Preset Pill Active States
+        const presets = [
+          { el: presetStage1, stage: 1 },
+          { el: presetStage2, stage: 2 },
+          { el: presetStage3, stage: 3 },
+        ];
+        presets.forEach(({ el, stage }) => {
+          if (stage === newStage) {
+            el.className = 'stage-preset-btn px-2.5 py-1 rounded-lg text-xs font-medium transition-all bg-slate-800 text-sky-300 border border-sky-500/40';
+          } else {
+            el.className = 'stage-preset-btn px-2.5 py-1 rounded-lg text-xs font-medium transition-all text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent';
+          }
+        });
+      }
+
+      // =========================================================================
+      // 7. CANVAS RENDERING FUNCTIONS
+      // =========================================================================
+      function drawBackgroundGrid() {
+        ctx.fillStyle = '#090d16';
+        ctx.fillRect(0, 0, state.width, state.height);
+
+        // Subtle laboratory grid
+        ctx.strokeStyle = 'rgba(30, 41, 59, 0.45)';
+        ctx.lineWidth = 1;
+        const step = 32;
+        ctx.beginPath();
+        for (let x = step; x < state.width; x += step) {
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, state.height);
+        }
+        for (let y = step; y < state.height; y += step) {
+          ctx.moveTo(0, y);
+          ctx.lineTo(state.width, y);
+        }
+        ctx.stroke();
+      }
+
+      function drawElectricFieldLines(pipe) {
+        if (!toggleFieldLines.checked || state.pipeCharge <= 0.02) return;
+
+        ctx.save();
+        const alpha = 0.14 + 0.28 * state.pipeCharge;
+        ctx.strokeStyle = `rgba(34, 211, 238, ${alpha.toFixed(2)})`;
+        ctx.fillStyle = `rgba(34, 211, 238, ${(alpha + 0.12).toFixed(2)})`;
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([5, 5]);
+        ctx.lineDashOffset = (state.time * 28) % 20;
+
+        const maxReach = 90 + 170 * state.pipeCharge;
+        const rows = 5;
+        for (let i = 0; i < rows; i++) {
+          const frac = (i + 0.5) / rows;
+          const anchorY = pipe.topY + frac * pipe.height;
+          const spreadAngle = (frac - 0.5) * 0.55;
+
+          const startX = pipe.leftX - Math.cos(spreadAngle) * maxReach;
+          const startY = anchorY - Math.sin(spreadAngle) * maxReach;
+          const endX = pipe.leftX - 6;
+          const endY = anchorY;
+
+          ctx.beginPath();
+          ctx.moveTo(startX, startY);
+          ctx.lineTo(endX, endY);
+          ctx.stroke();
+
+          // Inward arrowhead toward negative pipe
+          const midX = (startX + endX) * 0.5;
+          const midY = (startY + endY) * 0.5;
+          const ang = Math.atan2(endY - startY, endX - startX);
+          ctx.save();
+          ctx.setLineDash([]);
+          ctx.translate(midX, midY);
+          ctx.rotate(ang);
+          ctx.beginPath();
+          ctx.moveTo(5, 0);
+          ctx.lineTo(-4, -3.5);
+          ctx.lineTo(-4, 3.5);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+
+        ctx.restore();
+      }
+
+      function drawFaucet() {
+        const fx = state.streamBaseX;
+        const fy = state.faucetBottomY;
+
+        ctx.save();
+        // Horizontal supply pipe from top-left
+        const pipeGrad = ctx.createLinearGradient(0, fy - 56, 0, fy - 28);
+        pipeGrad.addColorStop(0, '#475569');
+        pipeGrad.addColorStop(0.45, '#cbd5e1');
+        pipeGrad.addColorStop(1, '#334155');
+        ctx.fillStyle = pipeGrad;
+        ctx.beginPath();
+        ctx.roundRect(fx - 95, fy - 54, 112, 24, [0, 12, 0, 0]);
+        ctx.fill();
+
+        // Valve handle on top
+        ctx.fillStyle = '#0284c7';
+        ctx.strokeStyle = '#7dd3fc';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.roundRect(fx - 46, fy - 66, 36, 7, 3.5);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(fx - 31, fy - 59, 6, 6);
+
+        // Vertical nozzle neck
+        const nozzleGrad = ctx.createLinearGradient(fx - 13, 0, fx + 13, 0);
+        nozzleGrad.addColorStop(0, '#334155');
+        nozzleGrad.addColorStop(0.4, '#e2e8f0');
+        nozzleGrad.addColorStop(1, '#1e293b');
+        ctx.fillStyle = nozzleGrad;
+        ctx.beginPath();
+        ctx.roundRect(fx - 12, fy - 34, 24, 34, [4, 4, 3, 3]);
+        ctx.fill();
+
+        // Nozzle tip collar
+        ctx.fillStyle = '#64748b';
+        ctx.beginPath();
+        ctx.roundRect(fx - 14, fy - 6, 28, 6, 2);
+        ctx.fill();
+
+        ctx.restore();
+      }
+
+      function drawBeaker() {
+        const bottomPt = state.streamCurve[state.streamCurve.length - 1] || { x: state.streamBaseX };
+        const centerX = state.streamBaseX + 34;
+        const beakerW = Math.min(220, Math.max(150, state.width * 0.25));
+        const beakerH = 62;
+        const left = centerX - beakerW * 0.5;
+        const top = state.beakerTopY;
+        const waterTop = top + 14;
+
+        ctx.save();
+
+        // Collected water inside beaker
+        const waterGrad = ctx.createLinearGradient(0, waterTop, 0, top + beakerH);
+        waterGrad.addColorStop(0, 'rgba(56, 189, 248, 0.34)');
+        waterGrad.addColorStop(1, 'rgba(14, 116, 144, 0.55)');
+        ctx.fillStyle = waterGrad;
+        ctx.beginPath();
+        ctx.roundRect(left + 3, waterTop, beakerW - 6, beakerH - 17, [0, 0, 10, 10]);
+        ctx.fill();
+
+        // Meniscus surface highlight
+        ctx.strokeStyle = 'rgba(186, 230, 253, 0.65)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(left + 4, waterTop);
+        ctx.lineTo(left + beakerW - 4, waterTop);
+        ctx.stroke();
+
+        // Impact ripple around stream entry point
+        const clampedImpactX = Math.max(left + 16, Math.min(left + beakerW - 16, bottomPt.x));
+        const rippleR = 6 + ((state.time * 18) % 10);
+        ctx.strokeStyle = `rgba(186, 230, 253, ${(0.65 - ((state.time * 18) % 10) / 16).toFixed(2)})`;
+        ctx.beginPath();
+        ctx.ellipse(clampedImpactX, waterTop, rippleR, 2.5, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Splash droplets
+        ctx.fillStyle = '#bae6fd';
+        for (let i = 0; i < state.splashes.length; i++) {
+          const s = state.splashes[i];
+          ctx.globalAlpha = Math.max(0, s.life);
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        // Glass beaker walls
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.65)';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(left - 4, top);
+        ctx.lineTo(left, top + 6);
+        ctx.lineTo(left, top + beakerH - 10);
+        ctx.quadraticCurveTo(left, top + beakerH, left + 10, top + beakerH);
+        ctx.lineTo(left + beakerW - 10, top + beakerH);
+        ctx.quadraticCurveTo(left + beakerW, top + beakerH, left + beakerW, top + beakerH - 10);
+        ctx.lineTo(left + beakerW, top + 6);
+        ctx.lineTo(left + beakerW + 4, top);
+        ctx.stroke();
+
+        // Graduation ticks
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+        ctx.lineWidth = 1.2;
+        for (let t = 1; t <= 3; t++) {
+          const ty = top + 14 + t * 11;
+          ctx.beginPath();
+          ctx.moveTo(left + 10, ty);
+          ctx.lineTo(left + (t === 2 ? 22 : 16), ty);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      function drawWaterMolecule(x, y, angle, scale, options) {
+        const showCharges = options && options.showCharges;
+        const bondLen = 10.5 * scale;
+        const oxR = 5.4 * scale;
+        const hR = 3.3 * scale;
+
+        const h1Angle = angle - HOH_HALF_ANGLE;
+        const h2Angle = angle + HOH_HALF_ANGLE;
+
+        const h1x = x + Math.cos(h1Angle) * bondLen;
+        const h1y = y + Math.sin(h1Angle) * bondLen;
+        const h2x = x + Math.cos(h2Angle) * bondLen;
+        const h2y = y + Math.sin(h2Angle) * bondLen;
+
+        ctx.save();
+
+        // O-H covalent bonds
+        ctx.strokeStyle = 'rgba(226, 232, 240, 0.85)';
+        ctx.lineWidth = Math.max(1.2, 2.1 * scale);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(h1x, h1y);
+        ctx.moveTo(x, y);
+        ctx.lineTo(h2x, h2y);
+        ctx.stroke();
+
+        // Hydrogen atoms (δ+)
+        [
+          { hx: h1x, hy: h1y },
+          { hx: h2x, hy: h2y },
+        ].forEach(({ hx, hy }) => {
+          const hGrad = ctx.createRadialGradient(hx - hR * 0.3, hy - hR * 0.3, hR * 0.1, hx, hy, hR);
+          hGrad.addColorStop(0, '#ffffff');
+          hGrad.addColorStop(0.7, '#e0f2fe');
+          hGrad.addColorStop(1, '#7dd3fc');
+          ctx.fillStyle = hGrad;
+          ctx.beginPath();
+          ctx.arc(hx, hy, hR, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(14, 165, 233, 0.6)';
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+
+          if (showCharges && scale >= 0.95) {
+            ctx.fillStyle = '#0369a1';
+            ctx.font = `700 ${Math.round(7.5 * scale)}px "JetBrains Mono", monospace`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('δ+', hx, hy + 0.5);
+          }
+        });
+
+        // Oxygen atom (δ−)
+        const oGrad = ctx.createRadialGradient(x - oxR * 0.3, y - oxR * 0.3, oxR * 0.15, x, y, oxR);
+        oGrad.addColorStop(0, '#fca5a5');
+        oGrad.addColorStop(0.55, '#ef4444');
+        oGrad.addColorStop(1, '#991b1b');
+        ctx.fillStyle = oGrad;
+        ctx.beginPath();
+        ctx.arc(x, y, oxR, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(254, 202, 202, 0.65)';
+        ctx.lineWidth = 0.9;
+        ctx.stroke();
+
+        if (showCharges && scale >= 0.95) {
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `700 ${Math.round(8 * scale)}px "JetBrains Mono", monospace`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('δ−', x, y + 0.5);
+        }
+
+        ctx.restore();
+      }
+
+      function drawStream() {
+        const curve = state.streamCurve;
+        if (!curve || curve.length < 2) return;
+
+        ctx.save();
+
+        // Build left and right boundaries of the translucent water stream
+        const leftPts = [];
+        const rightPts = [];
+        for (let i = 0; i < curve.length; i++) {
+          const pt = curve[i];
+          const frac = i / (curve.length - 1);
+          const halfW = 19.5 - frac * 4.5; // Generous width so large H2O molecules are clearly visible
+          leftPts.push({ x: pt.x - halfW, y: pt.y });
+          rightPts.push({ x: pt.x + halfW, y: pt.y });
+        }
+
+        // Translucent water column fill
+        const streamGrad = ctx.createLinearGradient(state.streamBaseX - 22, 0, state.streamBaseX + 70, 0);
+        streamGrad.addColorStop(0, 'rgba(56, 189, 248, 0.22)');
+        streamGrad.addColorStop(0.5, 'rgba(14, 165, 233, 0.30)');
+        streamGrad.addColorStop(1, 'rgba(2, 132, 199, 0.20)');
+        ctx.fillStyle = streamGrad;
+
+        ctx.beginPath();
+        ctx.moveTo(leftPts[0].x, leftPts[0].y);
+        for (let i = 1; i < leftPts.length; i++) {
+          ctx.lineTo(leftPts[i].x, leftPts[i].y);
+        }
+        for (let i = rightPts.length - 1; i >= 0; i--) {
+          ctx.lineTo(rightPts[i].x, rightPts[i].y);
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        // Soft outer edge highlights
+        ctx.strokeStyle = 'rgba(125, 211, 252, 0.42)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(leftPts[0].x, leftPts[0].y);
+        for (let i = 1; i < leftPts.length; i++) ctx.lineTo(leftPts[i].x, leftPts[i].y);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(rightPts[0].x, rightPts[0].y);
+        for (let i = 1; i < rightPts.length; i++) ctx.lineTo(rightPts[i].x, rightPts[i].y);
+        ctx.stroke();
+
+        // Draw large, easily readable H2O molecules flowing inside the stream
+        for (let i = 0; i < state.streamMolecules.length; i++) {
+          const m = state.streamMolecules[i];
+          const sample = sampleStreamCurve(m.progress);
+          const taper = 1 - m.progress * 0.22;
+          const mx = sample.x + m.laneOffset * taper;
+          const my = sample.y;
+          drawWaterMolecule(mx, my, m.angle, 1.02, { showCharges: false });
+        }
+
+        ctx.restore();
+      }
+
+      function drawPipe(pipe) {
+        ctx.save();
+
+        // Electrostatic aura glow around pipe proportional to charge
+        if (state.pipeCharge > 0.03) {
+          const glowRadius = 24 + 26 * state.pipeCharge;
+          ctx.shadowColor = `rgba(56, 189, 248, ${(0.25 + 0.45 * state.pipeCharge).toFixed(2)})`;
+          ctx.shadowBlur = glowRadius;
+        }
+
+        // Hover / Active Drag outer outline
+        if (state.isHoveringPipe || state.isDraggingPipe) {
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.roundRect(pipe.leftX - 4, pipe.topY - 4, pipe.width + 8, pipe.height + 8, 14);
+          ctx.stroke();
+        }
+
+        // Cylindrical white/off-white PVC body gradient
+        const bodyGrad = ctx.createLinearGradient(pipe.leftX, 0, pipe.rightX, 0);
+        bodyGrad.addColorStop(0, '#cbd5e1');
+        bodyGrad.addColorStop(0.32, '#f8fafc');
+        bodyGrad.addColorStop(0.75, '#e2e8f0');
+        bodyGrad.addColorStop(1, '#94a3b8');
+        ctx.fillStyle = bodyGrad;
+        ctx.beginPath();
+        ctx.roundRect(pipe.leftX, pipe.topY, pipe.width, pipe.height, 10);
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#64748b';
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+
+        // Top & bottom PVC end-cap rings
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(pipe.leftX + 3, pipe.topY + 8, pipe.width - 6, 2);
+        ctx.fillRect(pipe.leftX + 3, pipe.bottomY - 10, pipe.width - 6, 2);
+
+        // Render negative charge badges (−) along the PVC pipe
+        const chargeCount = Math.round(state.pipeCharge * 7);
+        for (let i = 0; i < chargeCount; i++) {
+          const frac = (i + 0.5) / chargeCount;
+          const cy = pipe.topY + 16 + frac * (pipe.height - 32);
+          const cx = pipe.leftX + (i % 2 === 0 ? pipe.width * 0.34 : pipe.width * 0.66);
+
+          ctx.fillStyle = '#0284c7';
+          ctx.beginPath();
+          ctx.arc(cx, cy, 7.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '700 12px "JetBrains Mono", monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('−', cx, cy + 0.5);
+        }
+
+        // Label below PVC pipe
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+        ctx.strokeStyle = 'rgba(71, 85, 105, 0.7)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(pipe.centerX - 38, pipe.bottomY + 8, 76, 20, 7);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '600 10px "Inter", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('PVC Pipe (⇄)', pipe.centerX, pipe.bottomY + 18);
+
+        // Wool Cloth Rubbing Animation & Electron Sparks
+        if (state.woolAnimProgress > 0) {
+          const rubOffset = Math.sin(state.woolAnimProgress * Math.PI * 6) * 28;
+          const woolX = pipe.rightX - 6;
+          const woolY = pipe.centerY + rubOffset - 22;
+
+          ctx.fillStyle = '#d97706';
+          ctx.strokeStyle = '#fbbf24';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.roundRect(woolX, woolY, 34, 44, 10);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = '#fef3c7';
+          ctx.font = '700 9px "Inter", sans-serif';
+          ctx.fillText('WOOL', woolX + 17, woolY + 22);
+        }
+
+        for (let i = 0; i < state.woolSparks.length; i++) {
+          const sp = state.woolSparks[i];
+          ctx.globalAlpha = Math.max(0, sp.life);
+          ctx.fillStyle = '#38bdf8';
+          ctx.font = '700 10px "JetBrains Mono", monospace';
+          ctx.fillText('e⁻', sp.x, sp.y);
+        }
+        ctx.globalAlpha = 1;
+
+        ctx.restore();
+      }
+
+      function drawZoomLensAndReticle(pipe) {
+        const streamHeight = Math.max(120, state.beakerTopY - state.faucetBottomY);
+        const reticleY = Math.max(
+          state.faucetBottomY + 26,
+          Math.min(state.beakerTopY - 26, pipe.centerY)
+        );
+        const reticleProgress = (reticleY - state.faucetBottomY) / streamHeight;
+        const reticleSample = sampleStreamCurve(reticleProgress);
+        const reticleX = reticleSample.x;
+        const reticleR = 23;
+
+        ctx.save();
+
+        // 1. Target Reticle on the water stream
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1.8;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.arc(reticleX, reticleY, reticleR, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 2. Position enlarged Molecular Zoom Lens cleanly without overlapping stream or pipe
+        const lensR =
+          state.width < 520
+            ? 88
+            : Math.min(136, Math.max(106, Math.round(Math.min(state.width * 0.165, state.height * 0.24))));
+        let lensX;
+        let lensY;
+
+        if (state.streamBaseX - lensR * 2 - 42 >= 12) {
+          // Plenty of room to the left of the stream
+          lensX = state.streamBaseX - lensR - 38;
+          lensY = Math.max(lensR + 52, Math.min(state.height - lensR - 24, reticleY));
+        } else {
+          // Narrow mobile screen: place in upper-right corner
+          lensX = state.width - lensR - 14;
+          lensY = lensR + 48;
+        }
+
+        // Connector line between Reticle and Zoom Lens edge
+        const connAngle = Math.atan2(lensY - reticleY, lensX - reticleX);
+        const rStartX = reticleX + Math.cos(connAngle) * reticleR;
+        const rStartY = reticleY + Math.sin(connAngle) * reticleR;
+        const lEndX = lensX - Math.cos(connAngle) * lensR;
+        const lEndY = lensY - Math.sin(connAngle) * lensR;
+
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(rStartX, rStartY);
+        ctx.lineTo(lEndX, lEndY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 3. Clip inside the circular Molecular Zoom Lens
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(lensX, lensY, lensR, 0, Math.PI * 2);
+        ctx.clip();
+
+        // Deep aqueous lens interior background
+        const lensBg = ctx.createRadialGradient(lensX, lensY, 12, lensX, lensY, lensR);
+        lensBg.addColorStop(0, '#0c243c');
+        lensBg.addColorStop(1, '#071322');
+        ctx.fillStyle = lensBg;
+        ctx.fillRect(lensX - lensR, lensY - lensR, lensR * 2, lensR * 2);
+
+        // Subtle curved stream column inside the zoom lens that bows to the right with the molecules
+        const lensPullShift =
+          Math.min(1, Math.pow(reticleSample.alignment, 1.15) * (0.45 + 0.55 * state.pipeCharge)) *
+          (lensR * 0.38);
+        ctx.save();
+        ctx.fillStyle = 'rgba(14, 165, 233, 0.12)';
+        ctx.beginPath();
+        ctx.ellipse(
+          lensX + lensPullShift,
+          lensY,
+          lensR * 0.68,
+          lensR * 1.15,
+          0,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+        ctx.restore();
+
+        // Compute screen coordinates & atom positions for each zoomed H2O molecule
+        const molScale = lensR / 62;
+        const bondLen = 10.5 * molScale;
+        const mappedMols = state.zoomMolecules.map((zm) => {
+          const sx = lensX + zm.x * (lensR * 0.76);
+          const sy = lensY + zm.y * (lensR * 0.76);
+          const h1A = zm.angle - HOH_HALF_ANGLE;
+          const h2A = zm.angle + HOH_HALF_ANGLE;
+          return {
+            sx,
+            sy,
+            angle: zm.angle,
+            h1x: sx + Math.cos(h1A) * bondLen,
+            h1y: sy + Math.sin(h1A) * bondLen,
+            h2x: sx + Math.cos(h2A) * bondLen,
+            h2y: sy + Math.sin(h2A) * bondLen,
+          };
+        });
+
+        // 4. Overlay: Hydrogen Bonds / Cohesion links between neighboring H2O molecules
+        if (toggleCohesion.checked) {
+          ctx.save();
+          ctx.strokeStyle = 'rgba(167, 139, 250, 0.62)';
+          ctx.lineWidth = 1.7;
+          ctx.setLineDash([3, 3.5]);
+          const maxHBondDist = lensR * 0.64;
+
+          for (let i = 0; i < mappedMols.length; i++) {
+            for (let j = i + 1; j < mappedMols.length; j++) {
+              const mA = mappedMols[i];
+              const mB = mappedMols[j];
+              const centerDist = Math.hypot(mB.sx - mA.sx, mB.sy - mA.sy);
+              if (centerDist < maxHBondDist) {
+                // Connect closest δ+ Hydrogen of one molecule to δ− Oxygen of the neighbor
+                const d1 = Math.hypot(mB.sx - mA.h1x, mB.sy - mA.h1y);
+                const d2 = Math.hypot(mB.sx - mA.h2x, mB.sy - mA.h2y);
+                const d3 = Math.hypot(mA.sx - mB.h1x, mA.sy - mB.h1y);
+                const d4 = Math.hypot(mA.sx - mB.h2x, mA.sy - mB.h2y);
+                const minD = Math.min(d1, d2, d3, d4);
+
+                ctx.beginPath();
+                if (minD === d1) {
+                  ctx.moveTo(mA.h1x, mA.h1y);
+                  ctx.lineTo(mB.sx, mB.sy);
+                } else if (minD === d2) {
+                  ctx.moveTo(mA.h2x, mA.h2y);
+                  ctx.lineTo(mB.sx, mB.sy);
+                } else if (minD === d3) {
+                  ctx.moveTo(mB.h1x, mB.h1y);
+                  ctx.lineTo(mA.sx, mA.sy);
+                } else {
+                  ctx.moveTo(mB.h2x, mB.h2y);
+                  ctx.lineTo(mA.sx, mA.sy);
+                }
+                ctx.stroke();
+              }
+            }
+          }
+          ctx.restore();
+        }
+
+        // 5. Overlay: Electrostatic Attraction Force vectors on aligned δ+ Hydrogens
+        if (toggleForces.checked && reticleSample.alignment > 0.08 && state.pipeCharge > 0.05) {
+          ctx.save();
+          const forceStrength = reticleSample.alignment * state.pipeCharge;
+          const vecLen = 14 + 26 * forceStrength;
+          const fAngle = reticleSample.targetAngle;
+
+          ctx.strokeStyle = `rgba(52, 211, 153, ${(0.45 + 0.55 * forceStrength).toFixed(2)})`;
+          ctx.fillStyle = `rgba(52, 211, 153, ${(0.55 + 0.45 * forceStrength).toFixed(2)})`;
+          ctx.lineWidth = 1.9;
+          ctx.setLineDash([3.5, 2.5]);
+
+          for (let i = 0; i < mappedMols.length; i++) {
+            const m = mappedMols[i];
+            const tipX = m.sx + Math.cos(fAngle) * (bondLen + vecLen);
+            const tipY = m.sy + Math.sin(fAngle) * (bondLen + vecLen);
+            const baseX = m.sx + Math.cos(fAngle) * (bondLen + 3);
+            const baseY = m.sy + Math.sin(fAngle) * (bondLen + 3);
+
+            ctx.beginPath();
+            ctx.moveTo(baseX, baseY);
+            ctx.lineTo(tipX, tipY);
+            ctx.stroke();
+
+            // Arrowhead pointing toward negative PVC pipe
+            ctx.save();
+            ctx.setLineDash([]);
+            ctx.translate(tipX, tipY);
+            ctx.rotate(fAngle);
+            ctx.beginPath();
+            ctx.moveTo(5.5, 0);
+            ctx.lineTo(-3.5, -3.2);
+            ctx.lineTo(-3.5, 3.2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+          }
+          ctx.restore();
+        }
+
+        // 6. Render each enlarged H2O molecule inside the Zoom Lens
+        for (let i = 0; i < mappedMols.length; i++) {
+          const m = mappedMols[i];
+          drawWaterMolecule(m.sx, m.sy, m.angle, molScale, {
+            showCharges: toggleCharges.checked,
+          });
+        }
+
+        // Subtle inner glass rim shadow
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(lensX, lensY, lensR - 1, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.restore(); // End circular clip
+
+        // Outer Magnifier Bezel Ring
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.arc(lensX, lensY, lensR, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Zoom Lens Header Pill Badge
+        const badgeW = Math.min(lensR * 1.65, 176);
+        ctx.fillStyle = '#0f172a';
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.roundRect(lensX - badgeW * 0.5, lensY - lensR - 11, badgeW, 20, 10);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#bae6fd';
+        ctx.font = '700 10px "Inter", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('MOLECULAR ZOOM LENS', lensX, lensY - lensR - 1);
+
+        ctx.restore();
+      }
+
+      function render() {
+        ctx.save();
+        ctx.scale(state.dpr, state.dpr);
+
+        const pipe = getPipeGeometry();
+        drawBackgroundGrid();
+        drawElectricFieldLines(pipe);
+        drawFaucet();
+        drawBeaker();
+        drawStream();
+        drawPipe(pipe);
+        drawZoomLensAndReticle(pipe);
+
+        ctx.restore();
+      }
+
+      // =========================================================================
+      // 8. INTERACTIVE INPUT HANDLING (MOUSE / TOUCH DRAG & UI CONTROLS)
+      // =========================================================================
+      function getCanvasCoords(evt) {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+        const clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+        return {
+          x: clientX - rect.left,
+          y: clientY - rect.top,
+        };
+      }
+
+      function isPointInPipe(x, y, pipe) {
+        const pad = 16;
+        return (
+          x >= pipe.leftX - pad &&
+          x <= pipe.rightX + pad &&
+          y >= pipe.topY - pad &&
+          y <= pipe.bottomY + pad
+        );
+      }
+
+      function setPipeCharge(chargeFrac) {
+        state.pipeCharge = Math.max(0, Math.min(1, chargeFrac));
+        const pct = Math.round(state.pipeCharge * 100);
+        chargeSlider.value = String(pct);
+        chargeValueLabel.textContent = `${pct}%`;
+      }
+
+      function setPipeDistanceCm(distCm) {
+        state.pipeDistCm = Math.max(1.5, Math.min(15.0, distCm));
+        distanceSlider.value = String(Math.round(state.pipeDistCm * 10));
+        distanceValueLabel.textContent = `${state.pipeDistCm.toFixed(1)} cm`;
+      }
+
+      function showToast(message) {
+        toastBanner.textContent = message;
+        toastBanner.style.opacity = '1';
+        if (state.toastTimeout) clearTimeout(state.toastTimeout);
+        state.toastTimeout = setTimeout(() => {
+          toastBanner.style.opacity = '0';
+        }, 2200);
+      }
+
+      // Canvas Pointer Dragging
+      canvas.addEventListener('pointerdown', (e) => {
+        const pt = getCanvasCoords(e);
+        const pipe = getPipeGeometry();
+        if (isPointInPipe(pt.x, pt.y, pipe)) {
+          state.isDraggingPipe = true;
+          state.dragOffsetX = pt.x - pipe.leftX;
+          state.dragOffsetY = pt.y - pipe.centerY;
+          canvas.setPointerCapture(e.pointerId);
+          canvas.style.cursor = 'grabbing';
+        }
+      });
+
+      canvas.addEventListener('pointermove', (e) => {
+        const pt = getCanvasCoords(e);
+        const pipe = getPipeGeometry();
+
+        if (state.isDraggingPipe) {
+          const desiredLeftX = pt.x - state.dragOffsetX;
+          const spanX = Math.max(1, pipe.maxLeftX - pipe.minLeftX);
+          const clampedLeftX = Math.max(pipe.minLeftX, Math.min(pipe.maxLeftX, desiredLeftX));
+          const newDistCm = 1.5 + ((clampedLeftX - pipe.minLeftX) / spanX) * (15.0 - 1.5);
+          setPipeDistanceCm(newDistCm);
+
+          const streamSpan = Math.max(120, state.beakerTopY - state.faucetBottomY);
+          const desiredCenterY = pt.y - state.dragOffsetY;
+          const normY = (desiredCenterY - state.faucetBottomY) / streamSpan;
+          state.pipeNormY = Math.max(0.20, Math.min(0.80, normY));
+          return;
+        }
+
+        const hovering = isPointInPipe(pt.x, pt.y, pipe);
+        state.isHoveringPipe = hovering;
+        canvas.style.cursor = hovering ? 'grab' : 'default';
+      });
+
+      function endPipeDrag(e) {
+        if (state.isDraggingPipe) {
+          state.isDraggingPipe = false;
+          if (e && e.pointerId !== undefined && canvas.hasPointerCapture(e.pointerId)) {
+            canvas.releasePointerCapture(e.pointerId);
+          }
+          canvas.style.cursor = state.isHoveringPipe ? 'grab' : 'default';
+        }
+      }
+
+      canvas.addEventListener('pointerup', endPipeDrag);
+      canvas.addEventListener('pointercancel', endPipeDrag);
+
+      // Sliders
+      chargeSlider.addEventListener('input', () => {
+        setPipeCharge(Number(chargeSlider.value) / 100);
+      });
+
+      distanceSlider.addEventListener('input', () => {
+        setPipeDistanceCm(Number(distanceSlider.value) / 10);
+      });
+
+      // Rub with Wool Button
+      rubWoolBtn.addEventListener('click', () => {
+        const boosted = Math.min(1, Math.max(0.95, state.pipeCharge + 0.25));
+        setPipeCharge(boosted);
+        state.woolAnimProgress = 1.0;
+        showToast('Electrons transferred from wool to PVC pipe!');
+      });
+
+      // Stage Presets
+      presetStage1.addEventListener('click', () => {
+        setPipeDistanceCm(13.8);
+        setPipeCharge(0.85);
+        state.pipeNormY = 0.48;
+      });
+
+      presetStage2.addEventListener('click', () => {
+        setPipeDistanceCm(6.4);
+        setPipeCharge(0.85);
+        state.pipeNormY = 0.48;
+      });
+
+      presetStage3.addEventListener('click', () => {
+        setPipeDistanceCm(2.1);
+        setPipeCharge(1.0);
+        state.pipeNormY = 0.48;
+      });
+
+      // Playback & Reset Buttons
+      playPauseBtn.addEventListener('click', () => {
+        state.paused = !state.paused;
+        playPauseIcon.textContent = state.paused ? '▶' : '⏸';
+        playPauseText.textContent = state.paused ? 'Resume' : 'Pause';
+      });
+
+      slowMoBtn.addEventListener('click', () => {
+        state.slowMo = !state.slowMo;
+        if (state.slowMo) {
+          slowMoBtn.className = 'flex-1 py-2 px-2.5 rounded-xl bg-sky-950/90 text-sky-300 text-xs font-semibold border border-sky-500/50 transition-colors flex items-center justify-center gap-1.5';
+        } else {
+          slowMoBtn.className = 'flex-1 py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-colors flex items-center justify-center gap-1.5';
+        }
+      });
+
+      resetBtn.addEventListener('click', () => {
+        state.paused = false;
+        state.slowMo = false;
+        playPauseIcon.textContent = '⏸';
+        playPauseText.textContent = 'Pause';
+        slowMoBtn.className = 'flex-1 py-2 px-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold border border-slate-700 transition-colors flex items-center justify-center gap-1.5';
+
+        setPipeCharge(0.85);
+        setPipeDistanceCm(13.8);
+        state.pipeNormY = 0.48;
+        state.woolAnimProgress = 0;
+        state.woolSparks = [];
+        state.splashes = [];
+        initStreamMolecules();
+        initZoomMolecules();
+      });
+
+      window.addEventListener('resize', resizeCanvas);
+
+      // =========================================================================
+      // 9. MAIN ANIMATION LOOP
+      // =========================================================================
+      let lastTimestamp = 0;
+      function animationLoop(timestamp) {
+        if (!lastTimestamp) lastTimestamp = timestamp;
+        const rawDt = Math.min(0.05, (timestamp - lastTimestamp) / 1000);
+        lastTimestamp = timestamp;
+
+        const dt = state.paused ? 0 : rawDt * (state.slowMo ? 0.25 : 1.0);
+        state.time += dt;
+
+        computePhysics(dt);
+        render();
+
+        requestAnimationFrame(animationLoop);
+      }
+
+      window.onload = function () {
+        resizeCanvas();
+        initStreamMolecules();
+        initZoomMolecules();
+        computePhysics(0.016);
+        render();
+        requestAnimationFrame(animationLoop);
+      };
+    })();
+  </script>
+</body>
+</html>
